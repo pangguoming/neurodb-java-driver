@@ -76,7 +76,7 @@ public class NeuroDBDriver {
                     resultSet.setRecordSet(recordSet);
                     break;
                 default:
-                    //printf("protocol error, got '%c' as reply type byte\n", type);
+                    throw new Exception("reply type error");
             }
             return resultSet;
         } catch (IOException e) {
@@ -86,15 +86,15 @@ public class NeuroDBDriver {
     }
 
 
-    final static char NEURODB_EXIST = 247;
-    final static char NEURODB_NIL = 248;
-    final static char NEURODB_RECORD = 249;
-    final static char NEURODB_RECORDS = 250;
-    final static char NEURODB_NODES = 251;
-    final static char NEURODB_LINKS = 252;
-    final static char NEURODB_RETURNDATA = 253;
-    final static char NEURODB_SELECTDB = 254;
-    final static char NEURODB_EOF = 255;
+    final static char NEURODB_EXIST = 65527;
+    final static char NEURODB_NIL = 65528;
+    final static char NEURODB_RECORD = 65529;
+    final static char NEURODB_RECORDS = 65530;
+    final static char NEURODB_NODES = 65531;
+    final static char NEURODB_LINKS = 65532;
+    final static char NEURODB_RETURNDATA = 65533;
+    final static char NEURODB_SELECTDB = 65534;
+    final static char NEURODB_EOF = 65535;
 
     final static char NDB_6BITLEN = 0;
     final static char NDB_14BITLEN = 1;
@@ -122,19 +122,20 @@ public class NeuroDBDriver {
         }
 
         public String get(int size) {
-            if(cur+size>s.length()){
-                throw new ArrayIndexOutOfBoundsException();
-            }
-            String subStr = s.substring(cur, size);
+            String subStr = s.substring(cur, cur+size);
             cur += size;
             return subStr;
         }
+
+        public char getType() {
+            char type = s.charAt(cur);
+            cur += 1;
+            return type;
+        }
     }
 
-    static int deserializeType(StringCur cur) {
-        int type;
-        type = cur.get(1).charAt(0);
-        return type;
+    static char deserializeType(StringCur cur) {
+        return cur.getType();
     }
 
     static int deserializeUint(StringCur cur) throws Exception {
@@ -260,7 +261,7 @@ public class NeuroDBDriver {
         tid = deserializeUint(cur);
         int ty;
         ty = deserializeType(cur);
-        if (ty == NEURODB_EXIST) {
+        if (ty == NEURODB_RETURNDATA) {//NEURODB_EXIST
             typeIndex = deserializeUint(cur);
             type = types.get(typeIndex).toString();
         } else if (ty == NEURODB_NIL) {
@@ -295,7 +296,7 @@ public class NeuroDBDriver {
         rd.setTypes(deserializeStringList(cur));
         rd.setKeyNames(deserializeStringList(cur));
         /*读取节点列表*/
-        if (deserializeType(cur) != NEURODB_NODES)
+        if (deserializeType(cur) != NEURODB_RETURNDATA) //NEURODB_NODES
             throw new Exception("Error Type");
         int cnt_nodes;
         cnt_nodes = deserializeUint(cur);
@@ -304,7 +305,7 @@ public class NeuroDBDriver {
             rd.getNodes().add(n);
         }
         /*读取关系列表*/
-        if (deserializeType(cur) != NEURODB_LINKS)
+        if (deserializeType(cur) != NEURODB_RETURNDATA) //NEURODB_LINKS
             throw new Exception("Error Type");
         int cnt_links;
         cnt_links = deserializeUint(cur);
@@ -313,7 +314,7 @@ public class NeuroDBDriver {
             rd.getLinks().add(l);
         }
         /*读取return结果集列表*/
-        if (deserializeType(cur) != NEURODB_RECORDS)
+        if (deserializeType(cur) != NEURODB_RETURNDATA)//NEURODB_RECORDS
             throw new Exception("Error Type");
         int cnt_records;
         cnt_records = deserializeUint(cur);
@@ -380,10 +381,10 @@ public class NeuroDBDriver {
                 }
                 record.add(val);
             }
-            rd.setRecords(record);
+            rd.getRecords().add(record);
         }
         /*读取结束标志*/
-        if (deserializeType(cur) != NEURODB_EOF)
+       if (deserializeType(cur) != NEURODB_RETURNDATA)//NEURODB_EOF
             throw new Exception("Error Type");
         return rd;
     }

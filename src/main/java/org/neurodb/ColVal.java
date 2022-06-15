@@ -22,12 +22,12 @@ public class ColVal{
         return (String[])val;
     }
 
-    RecordSet.Node getNode(){
-        return (RecordSet.Node)val;
+    Node getNode(){
+        return (Node)val;
     }
 
-    RecordSet.Link getLink(){
-        return (RecordSet.Link)val;
+    Link getLink(){
+        return (Link)val;
     }
 
     List getPath(){
