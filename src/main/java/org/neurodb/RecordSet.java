@@ -1,5 +1,6 @@
 package org.neurodb;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -11,6 +12,12 @@ public class RecordSet{
     List<Node> nodes=null;
     List<Link> links=null;
     List<List<ColVal>> records=null;
+
+    public RecordSet() {
+        nodes=new ArrayList<Node>();
+        links=new ArrayList<Link>();
+        records=new ArrayList<List<ColVal>>();
+    }
 
     public List<String> getLabels() {
         return labels;

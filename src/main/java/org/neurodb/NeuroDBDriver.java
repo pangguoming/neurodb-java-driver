@@ -13,7 +13,7 @@ public class NeuroDBDriver {
     private InputStream is;
     private OutputStream os;
     private BufferedWriter bw;
-    private BufferedReader br;
+    private BufferedInputStream br;
 
     public NeuroDBDriver(String address, int port) {
         try {
@@ -21,7 +21,8 @@ public class NeuroDBDriver {
             is = s.getInputStream();
             os = s.getOutputStream();
             bw = new BufferedWriter(new OutputStreamWriter(os));
-            br = new BufferedReader(new InputStreamReader(is));
+            br = new BufferedInputStream(is);
+
         } catch (UnknownHostException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -30,11 +31,11 @@ public class NeuroDBDriver {
     }
 
     public void close() throws IOException {
-            bw.close();
-            br.close();
-            is.close();
-            os.close();
-            s.close();
+        bw.close();
+        br.close();
+        is.close();
+        os.close();
+        s.close();
     }
 
     public ResultSet executeQuery(String query) throws Exception {
@@ -49,13 +50,13 @@ public class NeuroDBDriver {
                     resultSet.setStatus(ResultStatus.PARSER_OK.getType());
                     break;
                 case '$':
-                    resultSet.setMsg(br.readLine());
+                    resultSet.setMsg(readLine(br));
                     break;
                 case '#':
-                    resultSet.setMsg(br.readLine());
+                    resultSet.setMsg(readLine(br));
                     break;
                 case '*':
-                    String line = br.readLine();
+                    String line = readLine(br);
                     String[] head = line.split(",");
                     resultSet.setStatus(Integer.valueOf(head[0]));
                     resultSet.setCursor(Integer.valueOf(head[1]));
@@ -68,15 +69,15 @@ public class NeuroDBDriver {
                     resultSet.setDeleteLinks(Integer.valueOf(head[8]));
 
                     int bodyLen = Integer.parseInt(head[9]);
-                    char[] body = new char[bodyLen];
+                    byte[] body = new byte[bodyLen];
                     int len = br.read(body);
-                    br.readLine();
-                    String bodyStr = String.valueOf(body);
+                    readLine(br);
+                    String bodyStr = new String(body,"UTF-8");
                     RecordSet recordSet = deserializeReturnData(bodyStr);
                     resultSet.setRecordSet(recordSet);
                     break;
                 default:
-                    //printf("protocol error, got '%c' as reply type byte\n", type);
+                    throw new Exception("reply type error");
             }
             return resultSet;
         } catch (IOException e) {
@@ -85,16 +86,15 @@ public class NeuroDBDriver {
         return null;
     }
 
-
-    final static char NEURODB_EXIST = 247;
-    final static char NEURODB_NIL = 248;
-    final static char NEURODB_RECORD = 249;
-    final static char NEURODB_RECORDS = 250;
-    final static char NEURODB_NODES = 251;
-    final static char NEURODB_LINKS = 252;
-    final static char NEURODB_RETURNDATA = 253;
-    final static char NEURODB_SELECTDB = 254;
-    final static char NEURODB_EOF = 255;
+    final static char NEURODB_RETURNDATA = 1;
+    final static char NEURODB_SELECTDB = 2;
+    final static char NEURODB_EOF = 3;
+    final static char NEURODB_NODES = 6;
+    final static char NEURODB_LINKS = 7;
+    final static char NEURODB_EXIST = 17;
+    final static char NEURODB_NIL = 18;
+    final static char NEURODB_RECORD = 19;
+    final static char NEURODB_RECORDS = 20;
 
     final static char NDB_6BITLEN = 0;
     final static char NDB_14BITLEN = 1;
@@ -113,72 +113,80 @@ public class NeuroDBDriver {
     final static char VO_VAR_PATTERN = 9;
 
     class StringCur {
-        String s;
+        byte[] s;
         int cur;
 
         public StringCur(String s) {
-            this.s = s;
+            try {
+                this.s = s.getBytes("UTF-8");
+            } catch (UnsupportedEncodingException e) {
+                e.printStackTrace();
+            }
             this.cur = 0;
         }
 
         public String get(int size) {
-            if(cur+size>s.length()){
-                throw new ArrayIndexOutOfBoundsException();
-            }
-            String subStr = s.substring(cur, size);
+            byte [] bytes =new byte[size];
+            System.arraycopy(this.s,this.cur,bytes,0, size);
+            String subStr = new String(bytes);
             cur += size;
             return subStr;
         }
+
+        public char getType() {
+            char type =  (char)this.s[this.cur];
+            cur += 1;
+            return type;
+        }
     }
 
-    static int deserializeType(StringCur cur) {
-        int type;
-        type = cur.get(1).charAt(0);
-        return type;
+    static char deserializeType(StringCur cur) {
+        return cur.getType();
     }
 
     static int deserializeUint(StringCur cur) throws Exception {
-        int []buf =new int[2];
+        int[] buf = new int[3];
         buf[0] = cur.get(1).charAt(0);
-        int type;
-        type = (buf[0] & 0xC0) >> 6;
-        if (type == NDB_6BITLEN) {
-            /* Read a 6 bit len */
-            return buf[0] & 0x3F;
-        } else if (type == NDB_14BITLEN) {
-            buf[1] = cur.get(1).charAt(0);
-            return ((buf[0] & 0x3F) << 8) | buf[1];
-        } else if (type == NDB_32BITLEN) {
-            /* Read a 32 bit len */
-//            if (( * ss)[0] =='\0' || ( * ss)[1] =='\0' || ( * ss)[2] =='\0' || ( * ss)[3] =='\0')
-//            return NDB_LENERR;
-//            memcpy( & len, ( * ss),4);
-//            ( * ss) +=4;
-//            return len; // ntohl(len);
-
-            int i = cur.get(1).charAt(0) & 0xFF | //
-                    (cur.get(1).charAt(0) & 0xFF) << 8 | //
-                    (cur.get(1).charAt(0) & 0xFF) << 16 | //
-                    (cur.get(1).charAt(0) & 0xFF) << 24; //
-            return i;
-        }
-        else {
-            throw new Exception("Unknown type");
-        }
+        buf[1] = cur.get(1).charAt(0);
+        buf[2] = cur.get(1).charAt(0);
+        return (buf[0]&0x7f)<<14|(buf[1]&0x7f)<<7|buf[2];
+//        int[] buf = new int[2];
+//        buf[0] = cur.get(1).charAt(0);
+//        int type;
+//        type = (buf[0] & 0xC0) >> 6;
+//        if (type == NDB_6BITLEN) {
+//            /* Read a 6 bit len */
+//            return buf[0] & 0x3F;
+//        } else if (type == NDB_14BITLEN) {
+//            buf[1] = cur.get(1).charAt(0);
+//            return ((buf[0] & 0x3F) << 8) | buf[1];
+//        } else if (type == NDB_32BITLEN) {
+//            /* Read a 32 bit len */
+////            if (( * ss)[0] =='\0' || ( * ss)[1] =='\0' || ( * ss)[2] =='\0' || ( * ss)[3] =='\0')
+////            return NDB_LENERR;
+////            memcpy( & len, ( * ss),4);
+////            ( * ss) +=4;
+////            return len; // ntohl(len);
+//
+//            int i = cur.get(1).charAt(0) & 0xFF | //
+//                    (cur.get(1).charAt(0) & 0xFF) << 8 | //
+//                    (cur.get(1).charAt(0) & 0xFF) << 16 | //
+//                    (cur.get(1).charAt(0) & 0xFF) << 24; //
+//            return i;
+//        } else {
+//            throw new Exception("Unknown type");
+//        }
 
     }
 
     static String deserializeString(StringCur cur) throws Exception {
-        int len;
-        String val;
-        len = deserializeUint(cur);
-        val = cur.get(len);
+        int len = deserializeUint(cur);
+        String val = cur.get(len);
         return val;
     }
 
     static List deserializeStringList(StringCur cur) throws Exception {
-        int listlen;
-        listlen = deserializeUint(cur);
+        int listlen = deserializeUint(cur);
         List<String> l = new ArrayList<String>();
         while (listlen-- > 0) {
             String s = deserializeString(cur);
@@ -188,8 +196,7 @@ public class NeuroDBDriver {
     }
 
     static List deserializeLabels(StringCur cur, List labeList) throws Exception {
-        int listlen;
-        listlen = deserializeUint(cur);
+        int listlen = deserializeUint(cur);
         List<String> l = new ArrayList<String>();
         while (listlen-- > 0) {
             int i = deserializeUint(cur);
@@ -199,8 +206,7 @@ public class NeuroDBDriver {
     }
 
     static Map<String, ColVal> deserializeKVList(StringCur cur, List keyNames) throws Exception {
-        int listlen;
-        listlen = deserializeUint(cur);
+        int listlen = deserializeUint(cur);
         Map<String, ColVal> properties = new HashMap<String, ColVal>();
         while (listlen-- > 0) {
             int i = deserializeUint(cur);
@@ -269,16 +275,18 @@ public class NeuroDBDriver {
         Link l = new Link(id, hid, tid, type, kvs);
         return l;
     }
-    Node getNodeById(List<Node> nodes,long id){
-        for(Node node:nodes){
-            if(node.getId()==id)
+
+    Node getNodeById(List<Node> nodes, long id) {
+        for (Node node : nodes) {
+            if (node.getId() == id)
                 return node;
         }
         return null;
     }
-    Link getLinkById(List<Link> links,long id){
-        for(Link link:links){
-            if(link.getId()==id)
+
+    Link getLinkById(List<Link> links, long id) {
+        for (Link link : links) {
+            if (link.getId() == id)
                 return link;
         }
         return null;
@@ -319,7 +327,8 @@ public class NeuroDBDriver {
         cnt_records = deserializeUint(cur);
         for (int i = 0; i < cnt_records; i++) {
             int type, cnt_column;
-            type = deserializeType(cur);
+            if (deserializeType(cur) != NEURODB_RECORD)
+                throw new Exception("Error Type");
             cnt_column = deserializeUint(cur);
             List record = new ArrayList();
             for (int j = 0; j < cnt_column; j++) {
@@ -332,7 +341,7 @@ public class NeuroDBDriver {
                 } else if (type == VO_NODE) {
                     int id;
                     id = deserializeUint(cur);
-                    Node n=getNodeById(rd.getNodes(), id);
+                    Node n = getNodeById(rd.getNodes(), id);
                     val.setVal(n);
                 } else if (type == VO_LINK) {
                     int id;
@@ -380,11 +389,24 @@ public class NeuroDBDriver {
                 }
                 record.add(val);
             }
-            rd.setRecords(record);
+            rd.getRecords().add(record);
         }
         /*读取结束标志*/
         if (deserializeType(cur) != NEURODB_EOF)
             throw new Exception("Error Type");
         return rd;
+    }
+
+    static String readLine(BufferedInputStream bi) throws IOException {
+        StringBuilder sb=new StringBuilder();
+        byte[] bytes = new byte[1]; // 一次读取一个byte
+        while (bi.read(bytes) != -1) {
+            char c =  (char)bytes[0];
+            sb.append(c);
+            if(c=='\n'){
+                break;
+            }
+        }
+        return sb.toString().replace("\r\n","");
     }
 }
