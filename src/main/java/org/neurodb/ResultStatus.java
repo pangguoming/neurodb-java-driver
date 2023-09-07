@@ -1,7 +1,8 @@
 package org.neurodb;
 
 public enum ResultStatus {
-    PARSER_OK(1, ""),             /*运行成功*/
+    ERROR_INFO(0, "ERROR_INFO"),    /*错误消息*/
+    PARSER_OK(1, "OK"),             /*运行成功*/
     NO_MEM_ERR(2, "NO_MEM_ERR"),            /*内存分配异常*/
     SYNTAX_ERR(3, "SYNTAX_ERR"),           /*普通语法错误*/
     NO_Exp_ERR(4, "NO_Exp_ERR"),          /*未找到此指令*/
@@ -29,7 +30,8 @@ public enum ResultStatus {
     WHERE_PTN_NO_VAR_ERR(26, "WHERE_PTN_NO_VAR_ERR"),  /*where 模式条件，独立连通图缺少变量*/
     NO_PROC_ERR(27, "NO_PROC_ERR"),          /*不支持的存储过程*/
     CSV_FILE_ERR(28, "CSV_FILE_ERR"),             /*csv文件读取错误*/
-    CSV_ROW_VAR_ERR(29, "CSV_ROW_VAR_ERR");     /*csv 变量属性名在列中未找到*/
+    CSV_ROW_VAR_ERR(29, "CSV_ROW_VAR_ERR"),     /*csv 变量属性名在列中未找到*/
+    QUREY_TIMEOUT_ERR(30, "QUREY_TIMEOUT_ERR");     /*查询过载超时*/
 
     private Integer type;
     private String name;

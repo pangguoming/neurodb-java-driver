@@ -46,16 +46,18 @@ public class NeuroDBDriver {
             ResultSet resultSet = new ResultSet();
             char type = (char) br.read();
             switch (type) {
-                case '@':
+                case '@': /* 返回的是只有一个成功执行状态位的数据包*/
                     resultSet.setStatus(ResultStatus.PARSER_OK.getType());
                     break;
-                case '$':
+                case '$': /* 返回的是包含错误消息的报错数据包*/
+                    resultSet.setStatus(ResultStatus.ERROR_INFO.getType());
                     resultSet.setMsg(readLine(br));
                     break;
-                case '#':
+                case '#':/* 返回的是包含正常消息的消息数据包*/
+                    resultSet.setStatus(ResultStatus.PARSER_OK.getType());
                     resultSet.setMsg(readLine(br));
                     break;
-                case '*':
+                case '*':/* 返回的是图查询结果数据包 */
                     String line = readLine(br);
                     String[] head = line.split(",");
                     resultSet.setStatus(Integer.valueOf(head[0]));
@@ -72,8 +74,7 @@ public class NeuroDBDriver {
                     byte[] body = new byte[bodyLen];
                     int len = br.read(body);
                     readLine(br);
-                    String bodyStr = new String(body,"UTF-8");
-                    RecordSet recordSet = deserializeReturnData(bodyStr);
+                    RecordSet recordSet = deserializeReturnData(body);
                     resultSet.setRecordSet(recordSet);
                     break;
                 default:
@@ -116,12 +117,8 @@ public class NeuroDBDriver {
         byte[] s;
         int cur;
 
-        public StringCur(String s) {
-            try {
-                this.s = s.getBytes("UTF-8");
-            } catch (UnsupportedEncodingException e) {
-                e.printStackTrace();
-            }
+        public StringCur(byte[] body) {
+            this.s = body;
             this.cur = 0;
         }
 
@@ -292,7 +289,7 @@ public class NeuroDBDriver {
         return null;
     }
 
-    RecordSet deserializeReturnData(String body) throws Exception {
+    RecordSet deserializeReturnData(byte[] body) throws Exception {
         StringCur cur = new StringCur(body);
         RecordSet rd = new RecordSet();
         List path = null;
