@@ -103,13 +103,22 @@ public class NeuroDBDriver {
     final static char NDB_ENCVAL = 3;
     //final static char NDB_LENERR =UINT_MAX;
 
+
+
+//            #define VO_FLOAT 3
+//            #define VO_BOOL 4
+//            #define VO_FLOAT_ARRY 7
+
     final static char VO_STRING = 1;
-    final static char VO_NUM = 2;
-    final static char VO_STRING_ARRY = 3;
-    final static char VO_NUM_ARRY = 4;
-    final static char VO_NODE = 5;
-    final static char VO_LINK = 6;
-    final static char VO_PATH = 7;
+    final static char VO_INT = 2;
+    final static char VO_FLOAT = 3;
+    final static char VO_BOOL = 4;
+    final static char VO_STRING_ARRY = 5;
+    final static char VO_INT_ARRY = 6;
+    final static char VO_FLOAT_ARRY = 7;
+    final static char VO_NODE = 8;
+    final static char VO_LINK = 9;
+    final static char VO_PATH = 10;
     final static char VO_VAR = 8;
     final static char VO_VAR_PATTERN = 9;
 
@@ -142,11 +151,18 @@ public class NeuroDBDriver {
     }
 
     static int deserializeUint(StringCur cur) throws Exception {
-        int[] buf = new int[3];
+        int[] buf = new int[4];
         buf[0] = cur.get(1).charAt(0);
         buf[1] = cur.get(1).charAt(0);
         buf[2] = cur.get(1).charAt(0);
-        return (buf[0]&0x7f)<<14|(buf[1]&0x7f)<<7|buf[2];
+        buf[3] = cur.get(1).charAt(0);
+
+       return (buf[0]&0xFF)<<24|(buf[1]&0xFF)<<16|(buf[2]&0xFF)<<8|buf[3];
+//        int i = cur.get(1).charAt(0) & 0xFF | //
+//                    (cur.get(1).charAt(0) & 0xFF) << 8 | //
+//                    (cur.get(1).charAt(0) & 0xFF) << 16 | //
+//                    (cur.get(1).charAt(0) & 0xFF) << 24; //
+//        return i;
 //        int[] buf = new int[2];
 //        buf[0] = cur.get(1).charAt(0);
 //        int type;
@@ -215,7 +231,7 @@ public class NeuroDBDriver {
             val.setType(type);
             if (type == VO_STRING) {
                 val.setVal(deserializeString(cur));
-            } else if (type == VO_NUM) {
+            } else if (type == VO_BOOL ||type == VO_INT || type ==VO_FLOAT) {
                 String doubleStr = deserializeString(cur);
                 val.setVal(Double.parseDouble(doubleStr));
             } else if (type == VO_STRING_ARRY) {
@@ -225,7 +241,7 @@ public class NeuroDBDriver {
                     valAry[i] = deserializeString(cur);
                 }
                 val.setVal(valAry);
-            } else if (type == VO_NUM_ARRY) {
+            } else if (type == VO_INT_ARRY || type==VO_FLOAT_ARRY) {
                 aryLen = deserializeUint(cur);
                 double[] valAry = new double[aryLen];
                 for (i = 0; i < aryLen; i++) {
@@ -363,7 +379,7 @@ public class NeuroDBDriver {
                     val.setVal(path);
                 } else if (type == VO_STRING) {
                     val.setVal(deserializeString(cur));
-                } else if (type == VO_NUM) {
+                } else if (type == VO_BOOL || type == VO_INT || type == VO_FLOAT) {
                     String doubleStr = deserializeString(cur);
                     val.setVal(Double.parseDouble(doubleStr));
                 } else if (type == VO_STRING_ARRY) {
@@ -373,7 +389,7 @@ public class NeuroDBDriver {
                         valAry[i] = deserializeString(cur);
                     }
                     val.setVal(valAry);
-                } else if (type == VO_NUM_ARRY) {
+                } else if (type == VO_INT_ARRY || type ==VO_FLOAT_ARRY) {
                     aryLen = deserializeUint(cur);
                     double[] valAry = new double[aryLen];
                     for (i = 0; i < aryLen; i++) {
